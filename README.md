@@ -1,17 +1,18 @@
-# whats_the_move
+# What's The Move
 
-A new Flutter project.
+What's The Move is a Flutter-based mobile application that helps users discover nearby events and social activities.
 
-## Getting Started
+## Features
+- GPS-based event discovery
+- Interactive Google Map with event markers
+- AI-powered event search and recommendations
+- Pre-populated event data using Firebase
+- Ability to view event details and add new events
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Tech Stack
+- Flutter (Frontend)
+- Firebase Firestore (Backend)
+- Firebase Authentication (Optional)
+- Google Maps Flutter
+- Geolocator (GPS)
+- OpenAI API or similar for AI-powered search
