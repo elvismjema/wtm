@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "670087647110",
+    "project_id": "taskapp-fa0d8",
+    "storage_bucket": "taskapp-fa0d8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:670087647110:android:60f89bbf79187b6bff6607",
+        "android_client_info": {
+          "package_name": "com.elvismjema.todoappdemo"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "670087647110-aicn3p4qpopvmlolvhna68dnph0shapf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBi_cVsuaJ2dvdajK4hCmPhOcmDy5QuR7k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "670087647110-aicn3p4qpopvmlolvhna68dnph0shapf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "670087647110-5pv2gvpdmkfj726qb7fkqlbti88pjc0f.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.elvismjema.starterappHw3"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:670087647110:android:7d5e47eab7138b41ff6607",
+        "android_client_info": {
+          "package_name": "com.example.whats_the_move"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "670087647110-aicn3p4qpopvmlolvhna68dnph0shapf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBi_cVsuaJ2dvdajK4hCmPhOcmDy5QuR7k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "670087647110-aicn3p4qpopvmlolvhna68dnph0shapf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "670087647110-5pv2gvpdmkfj726qb7fkqlbti88pjc0f.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.elvismjema.starterappHw3"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
