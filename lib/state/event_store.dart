@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/demo_events.dart';
 import '../models/event.dart';
+import '../services/ai_event_search.dart';
 import '../theme/app_colors.dart';
 
 class EventStore extends ChangeNotifier {
@@ -228,6 +229,23 @@ class EventStore extends ChangeNotifier {
 
       return true;
     }).toList();
+  }
+
+  List<EventSearchResult> aiSearch({
+    required String query,
+    required String mood,
+    required String distance,
+    required String time,
+    required String price,
+  }) {
+    return AiEventSearch.search(
+      events: events,
+      query: query,
+      mood: mood,
+      distance: distance,
+      time: time,
+      price: price,
+    );
   }
 
   Future<void> _load() async {
