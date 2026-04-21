@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
 
-import '../../data/demo_events.dart';
+import '../../app.dart';
 import '../../data/demo_user.dart';
+import '../../state/event_store.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/profile/compact_event_card.dart';
-import '../../widgets/profile/profile_header.dart';
 import '../../widgets/profile/profile_menu_tile.dart';
 import '../../widgets/profile/stat_card.dart';
-import '../../widgets/shared/section_title.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final store = EventStoreProvider.of(context);
+    final createdEvents = store.createdEvents;
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -29,60 +31,66 @@ class ProfileScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(
-                    'Profile',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const Spacer(),
                   Container(
-                    decoration: BoxDecoration(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.surface.withValues(alpha: 0.92),
-                      border: Border.all(color: AppColors.border),
+                      gradient: LinearGradient(
+                        colors: [AppColors.hotspotCyan, AppColors.hotspotPink],
+                      ),
                     ),
-                    child: IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.settings_outlined),
+                    child: const CircleAvatar(
+                      radius: 30,
+                      backgroundColor: AppColors.surface,
+                      child: Icon(Icons.person_outline_rounded, size: 30),
                     ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        demoUser.username,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Text(demoUser.school),
+                    ],
                   ),
                 ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              ProfileHeader(
-                name: demoUser.name,
-                subtitle: '${demoUser.username} · ${demoUser.school}',
               ),
               const SizedBox(height: AppSpacing.lg),
               Row(
                 children: [
                   StatCard(
                     icon: Icons.edit_calendar_outlined,
-                    value: demoUser.createdCount,
+                    value: store.createdCount,
                     label: 'Created',
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   StatCard(
-                    icon: Icons.location_on_outlined,
-                    value: demoUser.attendedCount,
-                    label: 'Attended',
+                    icon: Icons.check_circle_outline_rounded,
+                    value: store.joinedCount,
+                    label: 'Joined',
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   StatCard(
                     icon: Icons.bookmark_outline,
-                    value: demoUser.savedCount,
+                    value: store.savedCount,
                     label: 'Saved',
                   ),
                 ],
               ),
               const SizedBox(height: AppSpacing.lg),
-              const ProfileMenuTile(
+              ProfileMenuTile(
                 icon: Icons.event_note_outlined,
                 title: 'My Events',
+                onTap: () {},
               ),
               const SizedBox(height: AppSpacing.sm),
-              const ProfileMenuTile(
+              ProfileMenuTile(
                 icon: Icons.bookmark_border_rounded,
                 title: 'Saved Events',
+                onTap: () => Navigator.of(context).pushNamed(AppRoutes.saved),
               ),
               const SizedBox(height: AppSpacing.sm),
               const ProfileMenuTile(
@@ -94,12 +102,42 @@ class ProfileScreen extends StatelessWidget {
                 icon: Icons.settings_outlined,
                 title: 'Settings',
               ),
-              const SizedBox(height: AppSpacing.xl),
-              const SectionTitle(title: 'Your Events'),
-              const SizedBox(height: AppSpacing.md),
-              CompactEventCard(event: demoEvents[0]),
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                'Your Events',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: AppSpacing.sm),
-              CompactEventCard(event: demoEvents[1]),
+              if (createdEvents.isEmpty)
+                Container(
+                  width: double.infinity,
+                  decoration: AppTheme.glassCardDecoration(),
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('No events created yet.'),
+                      const SizedBox(height: AppSpacing.sm),
+                      FilledButton(
+                        onPressed: () =>
+                            Navigator.of(context).pushNamed(AppRoutes.create),
+                        child: const Text('Create your first event'),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                for (final event in createdEvents) ...[
+                  InkWell(
+                    onTap: () => Navigator.of(context).pushNamed(
+                      AppRoutes.eventDetail,
+                      arguments: EventRouteArgs(eventId: event.id),
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    child: CompactEventCard(event: event),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
             ],
           ),
         ),

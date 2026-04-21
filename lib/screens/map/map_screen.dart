@@ -1,32 +1,83 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
-import '../../data/demo_events.dart';
-import '../../models/event.dart';
+import '../../app.dart';
+import '../../state/event_store.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/map/event_preview_sheet.dart';
 import '../../widgets/map/hotspot_marker.dart';
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  const MapScreen({
+    super.key,
+    required this.onOpenSearch,
+    required this.onOpenCreate,
+  });
+
+  final VoidCallback onOpenSearch;
+  final VoidCallback onOpenCreate;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen>
+    with SingleTickerProviderStateMixin {
   String? _selectedEventId;
+  late final AnimationController _userPulse;
 
-  void _openEvent(Event event) {
+  @override
+  void initState() {
+    super.initState();
+    _userPulse = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _userPulse.dispose();
+    super.dispose();
+  }
+
+  void _openPreview(String eventId) {
+    final store = EventStoreProvider.of(context);
+    final event = store.byId(eventId);
+    if (event == null) {
+      return;
+    }
+
     setState(() {
-      _selectedEventId = event.id;
+      _selectedEventId = eventId;
     });
 
     showModalBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => EventPreviewSheet(event: event),
+      isScrollControlled: true,
+      builder: (context) {
+        return EventPreviewSheet(
+          event: event,
+          onClose: () => Navigator.of(context).pop(),
+          onViewStory: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).pushNamed(
+              AppRoutes.story,
+              arguments: EventRouteArgs(eventId: event.id),
+            );
+          },
+          onViewDetails: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).pushNamed(
+              AppRoutes.eventDetail,
+              arguments: EventRouteArgs(eventId: event.id),
+            );
+          },
+        );
+      },
     ).whenComplete(() {
       if (!mounted) {
         return;
@@ -39,148 +90,151 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final store = EventStoreProvider.of(context);
+    final events = store.events;
+
     return Scaffold(
       body: Stack(
         children: [
-          const _FakeMapBackground(),
-          Positioned.fill(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return Stack(
-                  children: [
-                    for (final event in demoEvents)
-                      Positioned(
-                        left: event.mapX * constraints.maxWidth - 44,
-                        top: event.mapY * constraints.maxHeight - 44,
-                        child: HotspotMarker(
-                          color: event.color,
-                          isSelected: event.id == _selectedEventId,
-                          onTap: () => _openEvent(event),
-                        ),
-                      ),
-                    Positioned(
-                      left: constraints.maxWidth * 0.50 - 10,
-                      top: constraints.maxHeight * 0.52 - 10,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.7),
-                              blurRadius: 18,
-                              spreadRadius: 4,
-                            ),
-                          ],
-                        ),
+          FlutterMap(
+            options: const MapOptions(
+              initialCenter: LatLng(41.8818, -87.6231),
+              initialZoom: 13.7,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate:
+                    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                subdomains: const ['a', 'b', 'c', 'd'],
+                userAgentPackageName: 'com.example.whats_the_move',
+              ),
+              MarkerLayer(
+                markers: [
+                  for (final event in events)
+                    Marker(
+                      point: LatLng(event.latitude, event.longitude),
+                      width: 56,
+                      height: 56,
+                      child: HotspotMarker(
+                        color: event.color,
+                        isSelected: event.id == _selectedEventId,
+                        onTap: () => _openPreview(event.id),
                       ),
                     ),
-                  ],
-                );
-              },
-            ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.sm,
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    'Discover',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.headlineMedium?.copyWith(fontSize: 28),
+                  Marker(
+                    point: const LatLng(41.8818, -87.6231),
+                    width: 52,
+                    height: 52,
+                    child: AnimatedBuilder(
+                      animation: _userPulse,
+                      builder: (context, _) {
+                        final scale = 1 + (_userPulse.value * 0.5);
+                        return Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Transform.scale(
+                              scale: scale,
+                              child: Container(
+                                width: 30,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.hotspotCyan.withValues(
+                                    alpha: 0.22,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: 14,
+                              height: 14,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.hotspotCyan,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.hotspotCyan.withValues(
+                                      alpha: 0.8,
+                                    ),
+                                    blurRadius: 16,
+                                    spreadRadius: 3,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
+            ],
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.md,
+                AppSpacing.lg,
+                0,
+              ),
+              child: GestureDetector(
+                onTap: widget.onOpenSearch,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: AppTheme.glassCardDecoration(radius: 14),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.search_rounded, color: AppColors.mutedText),
+                      SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          'Search events, vibes, or places',
+                          style: TextStyle(color: AppColors.mutedText),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: AppSpacing.lg,
+            bottom: 120,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.hotspotCyan.withValues(alpha: 0.5),
+                    blurRadius: 22,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [AppColors.hotspotCyan, AppColors.hotspotPink],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: IconButton(
+                  onPressed: widget.onOpenCreate,
+                  icon: const Icon(Icons.add_rounded, color: Colors.black),
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
   }
-}
-
-class _FakeMapBackground extends StatelessWidget {
-  const _FakeMapBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF11161D), Color(0xFF0A0E14), Color(0xFF070A0F)],
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: _MapGridPainter())),
-          Positioned(
-            left: -120,
-            top: -90,
-            child: _glowBlob(const Color(0x33176F6B), 280),
-          ),
-          Positioned(
-            right: -90,
-            top: 140,
-            child: _glowBlob(const Color(0x332D4878), 220),
-          ),
-          Positioned(
-            left: 40,
-            bottom: 80,
-            child: _glowBlob(const Color(0x333A2B63), 240),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _glowBlob(Color color, double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-        boxShadow: [BoxShadow(color: color, blurRadius: 100, spreadRadius: 10)],
-      ),
-    );
-  }
-}
-
-class _MapGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final major = Paint()
-      ..color = const Color(0xFF1D2532).withValues(alpha: 0.36)
-      ..strokeWidth = 1.2;
-
-    final minor = Paint()
-      ..color = const Color(0xFF19202D).withValues(alpha: 0.22)
-      ..strokeWidth = 0.8;
-
-    for (double x = 0; x < size.width; x += 36) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), minor);
-    }
-    for (double y = 0; y < size.height; y += 36) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), minor);
-    }
-
-    for (double x = 0; x < size.width; x += 108) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), major);
-    }
-    for (double y = 0; y < size.height; y += 108) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), major);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
