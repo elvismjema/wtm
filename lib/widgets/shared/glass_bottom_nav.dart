@@ -11,10 +11,12 @@ class GlassBottomNav extends StatelessWidget {
     super.key,
     required this.currentIndex,
     required this.onTap,
+    required this.onCameraTap,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final VoidCallback onCameraTap;
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +63,7 @@ class GlassBottomNav extends StatelessWidget {
                     child: Center(
                       child: NeonIconButton(
                         icon: Icons.camera_alt_rounded,
-                        onTap: () => onTap(2),
+                        onTap: onCameraTap,
                         size: 64,
                       ),
                     ),
@@ -69,14 +71,14 @@ class GlassBottomNav extends StatelessWidget {
                   _NavItem(
                     icon: Icons.bookmark_border_rounded,
                     label: 'Saved',
-                    active: currentIndex == 3,
-                    onTap: () => onTap(3),
+                    active: currentIndex == 2,
+                    onTap: () => onTap(2),
                   ),
                   _NavItem(
                     icon: Icons.person_outline_rounded,
                     label: 'Profile',
-                    active: currentIndex == 4,
-                    onTap: () => onTap(4),
+                    active: currentIndex == 3,
+                    onTap: () => onTap(3),
                   ),
                 ],
               ),
