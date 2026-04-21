@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../app.dart';
+import '../../models/event.dart';
+import '../../state/event_store.dart';
+
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key, required this.onOpenSearch});
 
@@ -14,7 +18,7 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  static const LatLng _fallbackCenter = LatLng(41.8818, -87.6231);
+  static const LatLng _fallbackCenter = LatLng(35.4676, -97.5164);
 
   static const String _darkMapStyle = '''
 [
@@ -231,11 +235,70 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
+  void _showEventBottomSheet(Event event) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        final localizations = MaterialLocalizations.of(context);
+        final dateLabel = localizations.formatMediumDate(event.dateTime);
+        final timeLabel = localizations.formatTimeOfDay(
+          TimeOfDay.fromDateTime(event.dateTime),
+        );
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 6),
+                Text('Category: ${event.category}'),
+                const SizedBox(height: 4),
+                Text('$dateLabel at $timeLabel'),
+                const SizedBox(height: 4),
+                Text(event.locationName),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).pushNamed(
+                        AppRoutes.eventDetail,
+                        arguments: EventRouteArgs(eventId: event.id),
+                      );
+                    },
+                    child: const Text('View Details'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final store = EventStoreProvider.of(context);
+    final events = store.events;
     final userPosition = _userLatLng;
 
     final markers = <Marker>{
+      ...events.map(
+        (event) => Marker(
+          markerId: MarkerId('event_${event.id}'),
+          position: LatLng(event.latitude, event.longitude),
+          infoWindow: InfoWindow(title: event.title),
+          onTap: () => _showEventBottomSheet(event),
+        ),
+      ),
       if (userPosition != null)
         Marker(
           markerId: const MarkerId('user_location'),

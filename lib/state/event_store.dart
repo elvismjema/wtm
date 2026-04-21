@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,10 @@ class EventStore extends ChangeNotifier {
   static const _savedKey = 'saved_event_ids';
   static const _joinedKey = 'joined_event_ids';
   static const _createdKey = 'created_events';
+  static const _oklahomaCenter = (lat: 35.4676, lng: -97.5164);
+  static const _geocodingApiKey = String.fromEnvironment(
+    'GOOGLE_GEOCODING_API_KEY',
+  );
 
   final Set<String> _savedEventIds = <String>{};
   final Set<String> _joinedEventIds = <String>{};
@@ -77,8 +82,9 @@ class EventStore extends ChangeNotifier {
   }) async {
     final random = Random();
     final color = _colorForCategory(category);
-    final latitude = 41.880 + (random.nextDouble() - 0.5) * 0.02;
-    final longitude = -87.630 + (random.nextDouble() - 0.5) * 0.02;
+    final geocoded = await _geocodeLocation(locationName);
+    final latitude = geocoded?.$1 ?? _oklahomaCenter.lat;
+    final longitude = geocoded?.$2 ?? _oklahomaCenter.lng;
     final event = Event(
       id: 'evt_user_${DateTime.now().millisecondsSinceEpoch}',
       title: title,
@@ -101,6 +107,54 @@ class EventStore extends ChangeNotifier {
     notifyListeners();
     await _persist();
     return event;
+  }
+
+  Future<(double, double)?> _geocodeLocation(String locationName) async {
+    if (_geocodingApiKey.isEmpty) {
+      return null;
+    }
+
+    try {
+      final query = '$locationName, Oklahoma';
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+        'address': query,
+        'key': _geocodingApiKey,
+      });
+
+      final client = HttpClient();
+      final request = await client.getUrl(uri);
+      final response = await request.close();
+      final payload = await response.transform(utf8.decoder).join();
+      client.close(force: true);
+
+      if (response.statusCode != HttpStatus.ok) {
+        return null;
+      }
+
+      final decoded = jsonDecode(payload) as Map<String, dynamic>;
+      final status = decoded['status'] as String? ?? '';
+      if (status != 'OK') {
+        return null;
+      }
+
+      final results = decoded['results'] as List<dynamic>?;
+      if (results == null || results.isEmpty) {
+        return null;
+      }
+
+      final first = results.first as Map<String, dynamic>;
+      final geometry = first['geometry'] as Map<String, dynamic>?;
+      final location = geometry?['location'] as Map<String, dynamic>?;
+      final lat = (location?['lat'] as num?)?.toDouble();
+      final lng = (location?['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) {
+        return null;
+      }
+
+      return (lat, lng);
+    } catch (_) {
+      return null;
+    }
   }
 
   List<Event> search({
