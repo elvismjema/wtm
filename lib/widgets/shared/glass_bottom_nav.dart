@@ -11,12 +11,12 @@ class GlassBottomNav extends StatelessWidget {
     super.key,
     required this.currentIndex,
     required this.onTap,
-    required this.onCameraTap,
+    required this.onCreateTap,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
-  final VoidCallback onCameraTap;
+  final VoidCallback onCreateTap;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +47,15 @@ class GlassBottomNav extends StatelessWidget {
               ),
               child: Row(
                 children: [
+                  Expanded(
+                    child: Center(
+                      child: NeonIconButton(
+                        icon: Icons.add_rounded,
+                        onTap: onCreateTap,
+                        size: 60,
+                      ),
+                    ),
+                  ),
                   _NavItem(
                     icon: Icons.map_outlined,
                     label: 'Map',
@@ -58,15 +67,6 @@ class GlassBottomNav extends StatelessWidget {
                     label: 'Search',
                     active: currentIndex == 1,
                     onTap: () => onTap(1),
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: NeonIconButton(
-                        icon: Icons.camera_alt_rounded,
-                        onTap: onCameraTap,
-                        size: 64,
-                      ),
-                    ),
                   ),
                   _NavItem(
                     icon: Icons.bookmark_border_rounded,

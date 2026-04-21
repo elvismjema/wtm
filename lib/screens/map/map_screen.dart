@@ -10,14 +10,9 @@ import '../../widgets/map/event_preview_sheet.dart';
 import '../../widgets/map/hotspot_marker.dart';
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({
-    super.key,
-    required this.onOpenSearch,
-    required this.onOpenCreate,
-  });
+  const MapScreen({super.key, required this.onOpenSearch});
 
   final VoidCallback onOpenSearch;
-  final VoidCallback onOpenCreate;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -199,36 +194,6 @@ class _MapScreenState extends State<MapScreen>
                       ),
                     ],
                   ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: AppSpacing.lg,
-            bottom: 120,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.hotspotCyan.withValues(alpha: 0.5),
-                    blurRadius: 22,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Container(
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [AppColors.hotspotCyan, AppColors.hotspotPink],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: IconButton(
-                  onPressed: widget.onOpenCreate,
-                  icon: const Icon(Icons.add_rounded, color: Colors.black),
                 ),
               ),
             ),

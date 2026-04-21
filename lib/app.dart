@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'screens/camera/camera_screen.dart';
 import 'screens/create/create_event_screen.dart';
 import 'screens/event/event_detail_screen.dart';
 import 'screens/map/map_screen.dart';
@@ -16,7 +15,6 @@ class AppRoutes {
   static const search = '/search';
   static const saved = '/saved';
   static const profile = '/profile';
-  static const camera = '/camera';
   static const create = '/create';
   static const eventDetail = '/event';
   static const story = '/story';
@@ -41,13 +39,6 @@ class WhatsTheMoveApp extends StatelessWidget {
       onGenerateRoute: (settings) {
         final name = settings.name ?? AppRoutes.map;
         final args = settings.arguments;
-
-        if (name == AppRoutes.camera) {
-          return MaterialPageRoute<void>(
-            builder: (_) => const CameraScreen(),
-            settings: settings,
-          );
-        }
 
         if (name == AppRoutes.create) {
           return MaterialPageRoute<void>(
@@ -133,10 +124,7 @@ class _AppShellState extends State<AppShell> {
   Widget _buildScreen(int index) {
     switch (index) {
       case 0:
-        return MapScreen(
-          onOpenSearch: () => _setActiveTab(1),
-          onOpenCreate: () => Navigator.of(context).pushNamed(AppRoutes.create),
-        );
+        return MapScreen(onOpenSearch: () => _setActiveTab(1));
       case 1:
         return SearchScreen(onBackToMap: () => _setActiveTab(0));
       case 2:
@@ -175,8 +163,8 @@ class _AppShellState extends State<AppShell> {
             child: GlassBottomNav(
               currentIndex: _activeIndex,
               onTap: _setActiveTab,
-              onCameraTap: () =>
-                  Navigator.of(context).pushNamed(AppRoutes.camera),
+              onCreateTap: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.create),
             ),
           ),
         ],
