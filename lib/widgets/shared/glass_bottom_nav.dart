@@ -47,26 +47,26 @@ class GlassBottomNav extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Expanded(
-                    child: Center(
-                      child: NeonIconButton(
-                        icon: Icons.add_rounded,
-                        onTap: onCreateTap,
-                        size: 60,
-                      ),
-                    ),
-                  ),
                   _NavItem(
-                    icon: Icons.map_outlined,
-                    label: 'Map',
-                    active: currentIndex == 0,
-                    onTap: () => onTap(0),
+                    icon: Icons.add_rounded,
+                    label: 'Add',
+                    active: false,
+                    onTap: onCreateTap,
                   ),
                   _NavItem(
                     icon: Icons.search_rounded,
                     label: 'Search',
                     active: currentIndex == 1,
                     onTap: () => onTap(1),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: NeonIconButton(
+                        icon: Icons.map_rounded,
+                        onTap: () => onTap(0),
+                        size: 64,
+                      ),
+                    ),
                   ),
                   _NavItem(
                     icon: Icons.bookmark_border_rounded,

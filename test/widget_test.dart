@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 import 'package:whats_the_move/app.dart';
 import 'package:whats_the_move/state/event_store.dart';
 
@@ -10,7 +11,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Search events, vibes, or places'), findsOneWidget);
-    expect(find.text('Map'), findsOneWidget);
+    expect(find.byIcon(Icons.map_rounded), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
   });
 }
