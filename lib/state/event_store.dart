@@ -31,6 +31,9 @@ class EventStore extends ChangeNotifier {
   static const _savedKey = 'saved_event_ids';
   static const _joinedKey = 'joined_event_ids';
   static const _createdKey = 'created_events';
+  static const _publicEventsCollection = 'events';
+  static const _userCreatedCollection = 'created_events';
+  static const _userSavedCollection = 'saved_events';
   static const _oklahomaCenter = (lat: 35.4676, lng: -97.5164);
   static const _geocodingApiKey = String.fromEnvironment(
     'GOOGLE_GEOCODING_API_KEY',
@@ -39,6 +42,7 @@ class EventStore extends ChangeNotifier {
   final Set<String> _savedEventIds = <String>{};
   final Set<String> _joinedEventIds = <String>{};
   final List<Event> _createdEvents = <Event>[];
+  final List<Event> _cloudEvents = <Event>[];
   final bool _enableCloudSync;
   final FirebaseAuth? _auth;
   final FirebaseFirestore? _firestore;
@@ -51,12 +55,30 @@ class EventStore extends ChangeNotifier {
   bool get isHydrated => _hydrated;
   Future<void> get ready => _loadFuture;
 
-  List<Event> get events => <Event>[...demoEvents, ..._createdEvents];
+  List<Event> get events {
+    final byId = <String, Event>{};
+    for (final event in demoEvents) {
+      byId[event.id] = event;
+    }
+    final accountEvents = _enableCloudSync ? _cloudEvents : _createdEvents;
+    for (final event in accountEvents) {
+      byId[event.id] = event;
+    }
+    return byId.values.toList();
+  }
 
   List<Event> get savedEvents =>
       events.where((event) => _savedEventIds.contains(event.id)).toList();
 
-  List<Event> get createdEvents => List<Event>.from(_createdEvents);
+  List<Event> get createdEvents {
+    final userId = _currentUserId;
+    if (_enableCloudSync && userId != null) {
+      return _cloudEvents
+          .where((event) => event.creatorId == userId)
+          .toList(growable: false);
+    }
+    return List<Event>.from(_createdEvents);
+  }
 
   int get savedCount => _savedEventIds.length;
   int get joinedCount => _joinedEventIds.length;
@@ -86,8 +108,10 @@ class EventStore extends ChangeNotifier {
 
     if (_savedEventIds.contains(eventId)) {
       _savedEventIds.remove(eventId);
+      await _deleteSavedEventFromCloud(eventId);
     } else {
       _savedEventIds.add(eventId);
+      await _saveSavedEventToCloud(eventId);
     }
     notifyListeners();
     await _persist();
@@ -136,11 +160,11 @@ class EventStore extends ChangeNotifier {
       distanceMiles: 0.3 + random.nextDouble() * 3,
       attendeeCount: 1,
       hostName: 'You',
+      creatorId: _currentUserId,
       createdByUser: true,
     );
 
-    _createdEvents.insert(0, event);
-    _savedEventIds.add(event.id);
+    _insertOrReplaceCreatedEvent(event);
     notifyListeners();
     await _persist();
     await _saveCreatedEventToCloud(event);
@@ -303,6 +327,9 @@ class EventStore extends ChangeNotifier {
           prefs.getStringList(_prefsKey(_createdKey, null)) ?? <String>[],
         ),
       );
+    _cloudEvents
+      ..clear()
+      ..addAll(_createdEvents);
 
     _hydrated = true;
     notifyListeners();
@@ -332,6 +359,7 @@ class EventStore extends ChangeNotifier {
       _savedEventIds.clear();
       _joinedEventIds.clear();
       _createdEvents.clear();
+      _cloudEvents.clear();
       notifyListeners();
       return;
     }
@@ -341,7 +369,7 @@ class EventStore extends ChangeNotifier {
     }
 
     _currentUserId = user.uid;
-    await _loadCreatedEventsForUser(user.uid);
+    await _loadAccountEventsForUser(user.uid);
   }
 
   Future<void> _ensureCurrentAuthUserLoaded() async {
@@ -355,19 +383,19 @@ class EventStore extends ChangeNotifier {
     }
 
     _currentUserId = user.uid;
-    await _loadCreatedEventsForUser(user.uid);
+    await _loadAccountEventsForUser(user.uid);
   }
 
-  Future<void> _loadCreatedEventsForUser(String userId) async {
+  Future<void> _loadAccountEventsForUser(String userId) async {
     await _loadAccountEventIds(userId);
 
     final localEvents = await _loadLocalCreatedEvents(userId);
     var events = localEvents;
 
     try {
-      final snapshot = await _createdEventsCollection(
-        userId,
-      ).orderBy('dateTime').get();
+      final snapshot = await _publicEventsCollectionRef()
+          .orderBy('dateTime')
+          .get();
       final cloudEvents = <Event>[];
       for (final doc in snapshot.docs) {
         try {
@@ -378,17 +406,25 @@ class EventStore extends ChangeNotifier {
       }
       if (cloudEvents.isNotEmpty) {
         events = cloudEvents.reversed.toList();
-      } else if (localEvents.isNotEmpty) {
-        await _saveCreatedEventsToCloud(userId, localEvents);
+      } else {
+        final legacyCloudEvents = await _loadLegacyCreatedEvents(userId);
+        if (legacyCloudEvents.isNotEmpty) {
+          events = legacyCloudEvents;
+        }
+        if (events.isNotEmpty) {
+          await _saveCreatedEventsToCloud(userId, events);
+        }
       }
     } catch (_) {
       events = localEvents;
     }
 
-    _createdEvents
+    _cloudEvents
       ..clear()
       ..addAll(events);
-    _savedEventIds.addAll(events.map((event) => event.id));
+    _createdEvents
+      ..clear()
+      ..addAll(events.where((event) => event.creatorId == userId));
     await _persist();
     notifyListeners();
   }
@@ -405,6 +441,13 @@ class EventStore extends ChangeNotifier {
       ..addAll(
         prefs.getStringList(_prefsKey(_joinedKey, userId)) ?? <String>[],
       );
+
+    try {
+      final savedSnapshot = await _savedEventsCollection(userId).get();
+      _savedEventIds.addAll(savedSnapshot.docs.map((doc) => doc.id));
+    } catch (_) {
+      // Local saved IDs remain the fallback.
+    }
   }
 
   Future<List<Event>> _loadLocalCreatedEvents(String userId) async {
@@ -413,7 +456,13 @@ class EventStore extends ChangeNotifier {
         prefs.getStringList(_prefsKey(_createdKey, userId)) ??
         prefs.getStringList(_createdKey) ??
         <String>[];
-    return _decodeEvents(encodedEvents);
+    return _decodeEvents(encodedEvents)
+        .map(
+          (event) => event.creatorId == null
+              ? event.copyWith(creatorId: userId)
+              : event,
+        )
+        .toList(growable: false);
   }
 
   List<Event> _decodeEvents(List<String> encodedEvents) {
@@ -437,9 +486,32 @@ class EventStore extends ChangeNotifier {
     }
 
     try {
+      await _publicEventsCollectionRef().doc(event.id).set(event.toJson());
       await _createdEventsCollection(userId).doc(event.id).set(event.toJson());
     } catch (_) {
       // Keep the local copy if cloud sync is unavailable.
+    }
+  }
+
+  Future<List<Event>> _loadLegacyCreatedEvents(String userId) async {
+    try {
+      final snapshot = await _createdEventsCollection(
+        userId,
+      ).orderBy('dateTime').get();
+      final events = <Event>[];
+      for (final doc in snapshot.docs) {
+        try {
+          final event = Event.fromJson(doc.data());
+          events.add(
+            event.creatorId == null ? event.copyWith(creatorId: userId) : event,
+          );
+        } catch (_) {
+          // Ignore one bad legacy record instead of hiding all account events.
+        }
+      }
+      return events.reversed.toList(growable: false);
+    } catch (_) {
+      return <Event>[];
     }
   }
 
@@ -451,7 +523,17 @@ class EventStore extends ChangeNotifier {
       final batch = (_firestore ?? FirebaseFirestore.instance).batch();
       final collection = _createdEventsCollection(userId);
       for (final event in events) {
-        batch.set(collection.doc(event.id), event.toJson());
+        final eventWithCreator = event.creatorId == null
+            ? event.copyWith(creatorId: userId)
+            : event;
+        batch.set(
+          _publicEventsCollectionRef().doc(eventWithCreator.id),
+          eventWithCreator.toJson(),
+        );
+        batch.set(
+          collection.doc(eventWithCreator.id),
+          eventWithCreator.toJson(),
+        );
       }
       await batch.commit();
     } catch (_) {
@@ -465,7 +547,71 @@ class EventStore extends ChangeNotifier {
     return (_firestore ?? FirebaseFirestore.instance)
         .collection('users')
         .doc(userId)
-        .collection('created_events');
+        .collection(_userCreatedCollection);
+  }
+
+  CollectionReference<Map<String, dynamic>> _savedEventsCollection(
+    String userId,
+  ) {
+    return (_firestore ?? FirebaseFirestore.instance)
+        .collection('users')
+        .doc(userId)
+        .collection(_userSavedCollection);
+  }
+
+  CollectionReference<Map<String, dynamic>> _publicEventsCollectionRef() {
+    return (_firestore ?? FirebaseFirestore.instance).collection(
+      _publicEventsCollection,
+    );
+  }
+
+  Future<void> _saveSavedEventToCloud(String eventId) async {
+    final userId = _currentUserId;
+    if (!_enableCloudSync || userId == null) {
+      return;
+    }
+
+    try {
+      await _savedEventsCollection(userId).doc(eventId).set({
+        'eventId': eventId,
+        'savedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Local saved IDs remain the fallback.
+    }
+  }
+
+  Future<void> _deleteSavedEventFromCloud(String eventId) async {
+    final userId = _currentUserId;
+    if (!_enableCloudSync || userId == null) {
+      return;
+    }
+
+    try {
+      await _savedEventsCollection(userId).doc(eventId).delete();
+    } catch (_) {
+      // Local saved IDs remain the fallback.
+    }
+  }
+
+  void _insertOrReplaceCreatedEvent(Event event) {
+    final createdIndex = _createdEvents.indexWhere(
+      (existing) => existing.id == event.id,
+    );
+    if (createdIndex == -1) {
+      _createdEvents.insert(0, event);
+    } else {
+      _createdEvents[createdIndex] = event;
+    }
+
+    final cloudIndex = _cloudEvents.indexWhere(
+      (existing) => existing.id == event.id,
+    );
+    if (cloudIndex == -1) {
+      _cloudEvents.insert(0, event);
+    } else {
+      _cloudEvents[cloudIndex] = event;
+    }
   }
 
   String _prefsKey(String baseKey, String? userId) {

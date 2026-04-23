@@ -16,6 +16,7 @@ class Event {
     required this.distanceMiles,
     required this.attendeeCount,
     required this.hostName,
+    this.creatorId,
     this.createdByUser = false,
   });
 
@@ -33,6 +34,7 @@ class Event {
   final double distanceMiles;
   final int attendeeCount;
   final String hostName;
+  final String? creatorId;
   final bool createdByUser;
 
   Event copyWith({
@@ -50,6 +52,7 @@ class Event {
     double? distanceMiles,
     int? attendeeCount,
     String? hostName,
+    String? creatorId,
     bool? createdByUser,
   }) {
     return Event(
@@ -67,6 +70,7 @@ class Event {
       distanceMiles: distanceMiles ?? this.distanceMiles,
       attendeeCount: attendeeCount ?? this.attendeeCount,
       hostName: hostName ?? this.hostName,
+      creatorId: creatorId ?? this.creatorId,
       createdByUser: createdByUser ?? this.createdByUser,
     );
   }
@@ -87,6 +91,7 @@ class Event {
       'distanceMiles': distanceMiles,
       'attendeeCount': attendeeCount,
       'hostName': hostName,
+      'creatorId': creatorId,
       'createdByUser': createdByUser,
     };
   }
@@ -107,6 +112,7 @@ class Event {
       distanceMiles: (json['distanceMiles'] as num).toDouble(),
       attendeeCount: (json['attendeeCount'] as num).toInt(),
       hostName: json['hostName'] as String,
+      creatorId: json['creatorId'] as String?,
       createdByUser: (json['createdByUser'] as bool?) ?? false,
     );
   }
