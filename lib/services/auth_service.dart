@@ -1,16 +1,31 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
   AuthService._();
 
   static final _auth = FirebaseAuth.instance;
+  static final _firestore = FirebaseFirestore.instance;
   static final _googleSignIn = GoogleSignIn();
+
+  static CollectionReference<Map<String, dynamic>> get _usersCollection =>
+      _firestore.collection('users');
 
   static Future<UserCredential> signInWithEmail(
     String email,
     String password,
-  ) => _auth.signInWithEmailAndPassword(email: email, password: password);
+  ) async {
+    final credential = await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    final user = credential.user;
+    if (user != null) {
+      await _ensureUserProfileDocument(user);
+    }
+    return credential;
+  }
 
   static Future<UserCredential> registerWithEmail({
     required String email,
@@ -25,6 +40,10 @@ class AuthService {
     if (trimmed.isNotEmpty) {
       await credential.user?.updateDisplayName(trimmed);
     }
+    final user = credential.user;
+    if (user != null) {
+      await _ensureUserProfileDocument(user, preferredName: trimmed);
+    }
     return credential;
   }
 
@@ -37,7 +56,40 @@ class AuthService {
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
-    return _auth.signInWithCredential(credential);
+    final userCredential = await _auth.signInWithCredential(credential);
+    final user = userCredential.user;
+    if (user != null) {
+      await _ensureUserProfileDocument(user);
+    }
+    return userCredential;
+  }
+
+  static Future<void> _ensureUserProfileDocument(
+    User user, {
+    String? preferredName,
+  }) async {
+    final userRef = _usersCollection.doc(user.uid);
+    final snapshot = await userRef.get();
+
+    final trimmedPreferredName = preferredName?.trim();
+    final profileName = (trimmedPreferredName != null &&
+            trimmedPreferredName.isNotEmpty)
+        ? trimmedPreferredName
+        : user.displayName;
+
+    if (!snapshot.exists) {
+      await userRef.set({
+        'name': profileName,
+        'email': user.email,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
+    await userRef.set({
+      'name': profileName,
+      'email': user.email,
+    }, SetOptions(merge: true));
   }
 
   static Future<void> signOut() async {
