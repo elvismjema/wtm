@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,8 +14,18 @@ import '../services/ai_event_search.dart';
 import '../theme/app_colors.dart';
 
 class EventStore extends ChangeNotifier {
-  EventStore() {
+  EventStore({
+    bool enableCloudSync = true,
+    FirebaseAuth? auth,
+    FirebaseFirestore? firestore,
+  }) : _enableCloudSync = enableCloudSync,
+       _auth = auth,
+       _firestore = firestore {
     _loadFuture = _load();
+    if (_enableCloudSync) {
+      final firebaseAuth = _auth ?? FirebaseAuth.instance;
+      _authSub = firebaseAuth.authStateChanges().listen(_handleAuthChanged);
+    }
   }
 
   static const _savedKey = 'saved_event_ids';
@@ -26,7 +39,12 @@ class EventStore extends ChangeNotifier {
   final Set<String> _savedEventIds = <String>{};
   final Set<String> _joinedEventIds = <String>{};
   final List<Event> _createdEvents = <Event>[];
+  final bool _enableCloudSync;
+  final FirebaseAuth? _auth;
+  final FirebaseFirestore? _firestore;
   late final Future<void> _loadFuture;
+  StreamSubscription<User?>? _authSub;
+  String? _currentUserId;
 
   bool _hydrated = false;
 
@@ -46,6 +64,12 @@ class EventStore extends ChangeNotifier {
 
   bool isSaved(String eventId) => _savedEventIds.contains(eventId);
   bool isJoined(String eventId) => _joinedEventIds.contains(eventId);
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
 
   Event? byId(String id) {
     for (final event in events) {
@@ -88,6 +112,7 @@ class EventStore extends ChangeNotifier {
     required String locationName,
   }) async {
     await _loadFuture;
+    await _ensureCurrentAuthUserLoaded();
 
     final random = Random();
     final color = _colorForCategory(category);
@@ -115,6 +140,7 @@ class EventStore extends ChangeNotifier {
     _createdEvents.insert(0, event);
     notifyListeners();
     await _persist();
+    await _saveCreatedEventToCloud(event);
     return event;
   }
 
@@ -267,21 +293,9 @@ class EventStore extends ChangeNotifier {
       ..clear()
       ..addAll(prefs.getStringList(_joinedKey) ?? <String>[]);
 
-    final events = <Event>[];
-    final encodedEvents = prefs.getStringList(_createdKey) ?? <String>[];
-    for (final jsonString in encodedEvents) {
-      try {
-        events.add(
-          Event.fromJson(jsonDecode(jsonString) as Map<String, dynamic>),
-        );
-      } catch (_) {
-        // Ignore one bad local record instead of dropping the whole store.
-      }
-    }
-
     _createdEvents
       ..clear()
-      ..addAll(events);
+      ..addAll(_decodeEvents(prefs.getStringList(_createdKey) ?? <String>[]));
 
     _hydrated = true;
     notifyListeners();
@@ -292,9 +306,141 @@ class EventStore extends ChangeNotifier {
     await prefs.setStringList(_savedKey, _savedEventIds.toList());
     await prefs.setStringList(_joinedKey, _joinedEventIds.toList());
     await prefs.setStringList(
-      _createdKey,
+      _createdPrefsKey(_currentUserId),
       _createdEvents.map((event) => jsonEncode(event.toJson())).toList(),
     );
+  }
+
+  Future<void> _handleAuthChanged(User? user) async {
+    await _loadFuture;
+
+    if (user == null) {
+      _currentUserId = null;
+      _createdEvents.clear();
+      notifyListeners();
+      return;
+    }
+
+    if (_currentUserId == user.uid) {
+      return;
+    }
+
+    _currentUserId = user.uid;
+    await _loadCreatedEventsForUser(user.uid);
+  }
+
+  Future<void> _ensureCurrentAuthUserLoaded() async {
+    if (!_enableCloudSync) {
+      return;
+    }
+
+    final user = (_auth ?? FirebaseAuth.instance).currentUser;
+    if (user == null || _currentUserId == user.uid) {
+      return;
+    }
+
+    _currentUserId = user.uid;
+    await _loadCreatedEventsForUser(user.uid);
+  }
+
+  Future<void> _loadCreatedEventsForUser(String userId) async {
+    final localEvents = await _loadLocalCreatedEvents(userId);
+    var events = localEvents;
+
+    try {
+      final snapshot = await _createdEventsCollection(
+        userId,
+      ).orderBy('dateTime').get();
+      final cloudEvents = <Event>[];
+      for (final doc in snapshot.docs) {
+        try {
+          cloudEvents.add(Event.fromJson(doc.data()));
+        } catch (_) {
+          // Ignore one bad cloud record instead of hiding all account events.
+        }
+      }
+      if (cloudEvents.isNotEmpty) {
+        events = cloudEvents.reversed.toList();
+      } else if (localEvents.isNotEmpty) {
+        await _saveCreatedEventsToCloud(userId, localEvents);
+      }
+    } catch (_) {
+      events = localEvents;
+    }
+
+    _createdEvents
+      ..clear()
+      ..addAll(events);
+    await _persist();
+    notifyListeners();
+  }
+
+  Future<List<Event>> _loadLocalCreatedEvents(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final encodedEvents =
+        prefs.getStringList(_createdPrefsKey(userId)) ??
+        prefs.getStringList(_createdKey) ??
+        <String>[];
+    return _decodeEvents(encodedEvents);
+  }
+
+  List<Event> _decodeEvents(List<String> encodedEvents) {
+    final events = <Event>[];
+    for (final jsonString in encodedEvents) {
+      try {
+        events.add(
+          Event.fromJson(jsonDecode(jsonString) as Map<String, dynamic>),
+        );
+      } catch (_) {
+        // Ignore one bad local record instead of dropping the whole store.
+      }
+    }
+    return events;
+  }
+
+  Future<void> _saveCreatedEventToCloud(Event event) async {
+    final userId = _currentUserId;
+    if (!_enableCloudSync || userId == null) {
+      return;
+    }
+
+    try {
+      await _createdEventsCollection(userId).doc(event.id).set(event.toJson());
+    } catch (_) {
+      // Keep the local copy if cloud sync is unavailable.
+    }
+  }
+
+  Future<void> _saveCreatedEventsToCloud(
+    String userId,
+    List<Event> events,
+  ) async {
+    try {
+      final batch = (_firestore ?? FirebaseFirestore.instance).batch();
+      final collection = _createdEventsCollection(userId);
+      for (final event in events) {
+        batch.set(collection.doc(event.id), event.toJson());
+      }
+      await batch.commit();
+    } catch (_) {
+      // Local account-scoped storage remains the fallback.
+    }
+  }
+
+  CollectionReference<Map<String, dynamic>> _createdEventsCollection(
+    String userId,
+  ) {
+    return (_firestore ?? FirebaseFirestore.instance)
+        .collection('users')
+        .doc(userId)
+        .collection('created_events');
+  }
+
+  String _createdPrefsKey(String? userId) {
+    if (userId == null) {
+      return _createdKey;
+    }
+    return '${_createdKey}_$userId';
   }
 
   Color _colorForCategory(String category) {

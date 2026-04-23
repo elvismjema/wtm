@@ -10,7 +10,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       EventStoreProvider(
-        store: EventStore(),
+        store: EventStore(enableCloudSync: false),
         child: MaterialApp(
           theme: AppTheme.darkTheme,
           home: const SearchScreen(),
