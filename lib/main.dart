@@ -7,15 +7,10 @@ import 'state/event_store.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   final store = EventStore();
-  runApp(
-    EventStoreProvider(
-      store: store,
-      child: const WhatsTheMoveApp(),
-    ),
-  );
+  await store.ready;
+
+  runApp(EventStoreProvider(store: store, child: const WhatsTheMoveApp()));
 }
