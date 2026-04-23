@@ -131,11 +131,11 @@ class EventDetailScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pushNamed(
-                        AppRoutes.story,
-                        arguments: EventRouteArgs(eventId: event.id),
-                      ),
-                      child: const Text('View Story'),
+                      onPressed: () {
+                        AppShell.showEventOnMap(event.id);
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                      },
+                      child: const Text('View on Map'),
                     ),
                   ),
                 ],
