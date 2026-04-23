@@ -70,6 +70,9 @@ class EventStore extends ChangeNotifier {
   List<Event> get savedEvents =>
       events.where((event) => _savedEventIds.contains(event.id)).toList();
 
+  List<Event> get joinedEvents =>
+      events.where((event) => _joinedEventIds.contains(event.id)).toList();
+
   List<Event> get createdEvents {
     final userId = _currentUserId;
     if (_enableCloudSync && userId != null) {

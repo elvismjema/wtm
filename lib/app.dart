@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import 'screens/auth/login_screen.dart';
 import 'screens/create/create_event_screen.dart';
+import 'screens/joined/joined_screen.dart';
+import 'screens/my_events/my_events_screen.dart';
 import 'screens/event/event_detail_screen.dart';
 import 'screens/map/map_screen.dart';
 import 'screens/profile/profile_screen.dart';
@@ -16,6 +18,8 @@ class AppRoutes {
   static const map = '/map';
   static const search = '/search';
   static const saved = '/saved';
+  static const joined = '/joined';
+  static const myEvents = '/my-events';
   static const profile = '/profile';
   static const create = '/create';
   static const eventDetail = '/event';
@@ -45,6 +49,20 @@ class WhatsTheMoveApp extends StatelessWidget {
         if (name == AppRoutes.create) {
           return MaterialPageRoute<void>(
             builder: (_) => const CreateEventScreen(),
+            settings: settings,
+          );
+        }
+
+        if (name == AppRoutes.joined) {
+          return MaterialPageRoute<void>(
+            builder: (_) => const JoinedScreen(),
+            settings: settings,
+          );
+        }
+
+        if (name == AppRoutes.myEvents) {
+          return MaterialPageRoute<void>(
+            builder: (_) => const MyEventsScreen(),
             settings: settings,
           );
         }
