@@ -1,5 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'screens/auth/auth_screen.dart';
 import 'screens/create/create_event_screen.dart';
 import 'screens/event/event_detail_screen.dart';
 import 'screens/map/map_screen.dart';
@@ -35,7 +37,7 @@ class WhatsTheMoveApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: "What's The Move",
       theme: AppTheme.darkTheme,
-      initialRoute: AppRoutes.map,
+      home: const AuthGate(),
       onGenerateRoute: (settings) {
         final name = settings.name ?? AppRoutes.map;
         final args = settings.arguments;
@@ -79,6 +81,30 @@ class WhatsTheMoveApp extends StatelessWidget {
     return MaterialPageRoute<void>(
       builder: (_) => const AppShell(initialRoute: AppRoutes.map),
       settings: settings,
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasData) {
+          return const AppShell(initialRoute: AppRoutes.map);
+        }
+
+        return const AuthScreen();
+      },
     );
   }
 }
