@@ -12,7 +12,7 @@ import '../theme/app_colors.dart';
 
 class EventStore extends ChangeNotifier {
   EventStore() {
-    _load();
+    _loadFuture = _load();
   }
 
   static const _savedKey = 'saved_event_ids';
@@ -26,10 +26,12 @@ class EventStore extends ChangeNotifier {
   final Set<String> _savedEventIds = <String>{};
   final Set<String> _joinedEventIds = <String>{};
   final List<Event> _createdEvents = <Event>[];
+  late final Future<void> _loadFuture;
 
   bool _hydrated = false;
 
   bool get isHydrated => _hydrated;
+  Future<void> get ready => _loadFuture;
 
   List<Event> get events => <Event>[...demoEvents, ..._createdEvents];
 
@@ -55,6 +57,8 @@ class EventStore extends ChangeNotifier {
   }
 
   Future<void> toggleSaved(String eventId) async {
+    await _loadFuture;
+
     if (_savedEventIds.contains(eventId)) {
       _savedEventIds.remove(eventId);
     } else {
@@ -65,6 +69,8 @@ class EventStore extends ChangeNotifier {
   }
 
   Future<void> toggleJoined(String eventId) async {
+    await _loadFuture;
+
     if (_joinedEventIds.contains(eventId)) {
       _joinedEventIds.remove(eventId);
     } else {
@@ -81,6 +87,8 @@ class EventStore extends ChangeNotifier {
     required DateTime dateTime,
     required String locationName,
   }) async {
+    await _loadFuture;
+
     final random = Random();
     final color = _colorForCategory(category);
     final geocoded = await _geocodeLocation(locationName);
@@ -259,15 +267,21 @@ class EventStore extends ChangeNotifier {
       ..clear()
       ..addAll(prefs.getStringList(_joinedKey) ?? <String>[]);
 
+    final events = <Event>[];
     final encodedEvents = prefs.getStringList(_createdKey) ?? <String>[];
+    for (final jsonString in encodedEvents) {
+      try {
+        events.add(
+          Event.fromJson(jsonDecode(jsonString) as Map<String, dynamic>),
+        );
+      } catch (_) {
+        // Ignore one bad local record instead of dropping the whole store.
+      }
+    }
+
     _createdEvents
       ..clear()
-      ..addAll(
-        encodedEvents.map(
-          (jsonString) =>
-              Event.fromJson(jsonDecode(jsonString) as Map<String, dynamic>),
-        ),
-      );
+      ..addAll(events);
 
     _hydrated = true;
     notifyListeners();
