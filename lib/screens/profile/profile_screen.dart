@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../app.dart';
@@ -16,6 +17,15 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = EventStoreProvider.of(context);
     final createdEvents = store.createdEvents;
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = user?.displayName?.trim();
+    final email = user?.email?.trim();
+    final profileName = displayName?.isNotEmpty == true
+        ? displayName!
+        : email ?? demoUser.name;
+    final profileSubtitle = email?.isNotEmpty == true
+        ? email!
+        : demoUser.school;
 
     return Scaffold(
       body: SafeArea(
@@ -50,10 +60,10 @@ class ProfileScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        demoUser.username,
+                        profileName,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      Text(demoUser.school),
+                      Text(profileSubtitle),
                     ],
                   ),
                 ],
@@ -101,6 +111,12 @@ class ProfileScreen extends StatelessWidget {
               const ProfileMenuTile(
                 icon: Icons.settings_outlined,
                 title: 'Settings',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              ProfileMenuTile(
+                icon: Icons.logout_rounded,
+                title: 'Sign Out',
+                onTap: () => FirebaseAuth.instance.signOut(),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(
