@@ -29,7 +29,24 @@ void main() {
     expect(reloadedStore.createdEvents.single.title, 'Campus Pop Up');
   });
 
-  test('saved state for a created event survives app reload', () async {
+  test('created events are automatically saved for the creator', () async {
+    final store = EventStore(enableCloudSync: false);
+    await store.ready;
+
+    final created = await store.addEvent(
+      title: 'Creator Meetup',
+      description: 'Build and hang.',
+      category: 'Study',
+      dateTime: DateTime(2026, 5, 4, 16),
+      locationName: 'Innovation Lab',
+    );
+
+    expect(store.createdEvents.map((event) => event.id), contains(created.id));
+    expect(store.isSaved(created.id), isTrue);
+    expect(store.savedEvents.map((event) => event.id), contains(created.id));
+  });
+
+  test('auto-saved state for a created event survives app reload', () async {
     final store = EventStore(enableCloudSync: false);
     await store.ready;
 
@@ -40,7 +57,6 @@ void main() {
       dateTime: DateTime(2026, 5, 2, 18, 30),
       locationName: 'Rec Center',
     );
-    await store.toggleSaved(created.id);
 
     final reloadedStore = EventStore(enableCloudSync: false);
     await reloadedStore.ready;

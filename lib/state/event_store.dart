@@ -82,6 +82,7 @@ class EventStore extends ChangeNotifier {
 
   Future<void> toggleSaved(String eventId) async {
     await _loadFuture;
+    await _ensureCurrentAuthUserLoaded();
 
     if (_savedEventIds.contains(eventId)) {
       _savedEventIds.remove(eventId);
@@ -94,6 +95,7 @@ class EventStore extends ChangeNotifier {
 
   Future<void> toggleJoined(String eventId) async {
     await _loadFuture;
+    await _ensureCurrentAuthUserLoaded();
 
     if (_joinedEventIds.contains(eventId)) {
       _joinedEventIds.remove(eventId);
@@ -138,6 +140,7 @@ class EventStore extends ChangeNotifier {
     );
 
     _createdEvents.insert(0, event);
+    _savedEventIds.add(event.id);
     notifyListeners();
     await _persist();
     await _saveCreatedEventToCloud(event);
@@ -287,15 +290,19 @@ class EventStore extends ChangeNotifier {
 
     _savedEventIds
       ..clear()
-      ..addAll(prefs.getStringList(_savedKey) ?? <String>[]);
+      ..addAll(prefs.getStringList(_prefsKey(_savedKey, null)) ?? <String>[]);
 
     _joinedEventIds
       ..clear()
-      ..addAll(prefs.getStringList(_joinedKey) ?? <String>[]);
+      ..addAll(prefs.getStringList(_prefsKey(_joinedKey, null)) ?? <String>[]);
 
     _createdEvents
       ..clear()
-      ..addAll(_decodeEvents(prefs.getStringList(_createdKey) ?? <String>[]));
+      ..addAll(
+        _decodeEvents(
+          prefs.getStringList(_prefsKey(_createdKey, null)) ?? <String>[],
+        ),
+      );
 
     _hydrated = true;
     notifyListeners();
@@ -303,10 +310,16 @@ class EventStore extends ChangeNotifier {
 
   Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_savedKey, _savedEventIds.toList());
-    await prefs.setStringList(_joinedKey, _joinedEventIds.toList());
     await prefs.setStringList(
-      _createdPrefsKey(_currentUserId),
+      _prefsKey(_savedKey, _currentUserId),
+      _savedEventIds.toList(),
+    );
+    await prefs.setStringList(
+      _prefsKey(_joinedKey, _currentUserId),
+      _joinedEventIds.toList(),
+    );
+    await prefs.setStringList(
+      _prefsKey(_createdKey, _currentUserId),
       _createdEvents.map((event) => jsonEncode(event.toJson())).toList(),
     );
   }
@@ -316,6 +329,8 @@ class EventStore extends ChangeNotifier {
 
     if (user == null) {
       _currentUserId = null;
+      _savedEventIds.clear();
+      _joinedEventIds.clear();
       _createdEvents.clear();
       notifyListeners();
       return;
@@ -344,6 +359,8 @@ class EventStore extends ChangeNotifier {
   }
 
   Future<void> _loadCreatedEventsForUser(String userId) async {
+    await _loadAccountEventIds(userId);
+
     final localEvents = await _loadLocalCreatedEvents(userId);
     var events = localEvents;
 
@@ -371,14 +388,29 @@ class EventStore extends ChangeNotifier {
     _createdEvents
       ..clear()
       ..addAll(events);
+    _savedEventIds.addAll(events.map((event) => event.id));
     await _persist();
     notifyListeners();
+  }
+
+  Future<void> _loadAccountEventIds(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    _savedEventIds
+      ..clear()
+      ..addAll(prefs.getStringList(_prefsKey(_savedKey, userId)) ?? <String>[]);
+
+    _joinedEventIds
+      ..clear()
+      ..addAll(
+        prefs.getStringList(_prefsKey(_joinedKey, userId)) ?? <String>[],
+      );
   }
 
   Future<List<Event>> _loadLocalCreatedEvents(String userId) async {
     final prefs = await SharedPreferences.getInstance();
     final encodedEvents =
-        prefs.getStringList(_createdPrefsKey(userId)) ??
+        prefs.getStringList(_prefsKey(_createdKey, userId)) ??
         prefs.getStringList(_createdKey) ??
         <String>[];
     return _decodeEvents(encodedEvents);
@@ -436,11 +468,11 @@ class EventStore extends ChangeNotifier {
         .collection('created_events');
   }
 
-  String _createdPrefsKey(String? userId) {
+  String _prefsKey(String baseKey, String? userId) {
     if (userId == null) {
-      return _createdKey;
+      return baseKey;
     }
-    return '${_createdKey}_$userId';
+    return '${baseKey}_$userId';
   }
 
   Color _colorForCategory(String category) {
