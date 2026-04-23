@@ -122,11 +122,6 @@ class ProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.sm),
               const ProfileMenuTile(
-                icon: Icons.notifications_none_rounded,
-                title: 'Notifications',
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              const ProfileMenuTile(
                 icon: Icons.settings_outlined,
                 title: 'Settings',
               ),
