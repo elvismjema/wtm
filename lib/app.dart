@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'screens/auth/auth_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/create/create_event_screen.dart';
 import 'screens/event/event_detail_screen.dart';
 import 'screens/map/map_screen.dart';
@@ -103,7 +103,7 @@ class AuthGate extends StatelessWidget {
           return const AppShell(initialRoute: AppRoutes.map);
         }
 
-        return const AuthScreen();
+        return const LoginScreen();
       },
     );
   }
