@@ -10,7 +10,7 @@ void main() {
   });
 
   test('created events are persisted and loaded by a new store', () async {
-    final store = EventStore();
+    final store = EventStore(enableCloudSync: false);
     await store.ready;
 
     final created = await store.addEvent(
@@ -21,7 +21,7 @@ void main() {
       locationName: 'Student Union',
     );
 
-    final reloadedStore = EventStore();
+    final reloadedStore = EventStore(enableCloudSync: false);
     await reloadedStore.ready;
 
     expect(reloadedStore.byId(created.id), isNotNull);
@@ -30,7 +30,7 @@ void main() {
   });
 
   test('saved state for a created event survives app reload', () async {
-    final store = EventStore();
+    final store = EventStore(enableCloudSync: false);
     await store.ready;
 
     final created = await store.addEvent(
@@ -42,7 +42,7 @@ void main() {
     );
     await store.toggleSaved(created.id);
 
-    final reloadedStore = EventStore();
+    final reloadedStore = EventStore(enableCloudSync: false);
     await reloadedStore.ready;
 
     expect(reloadedStore.isSaved(created.id), isTrue);
@@ -65,7 +65,7 @@ void main() {
       ],
     });
 
-    final store = EventStore();
+    final store = EventStore(enableCloudSync: false);
     await store.ready;
 
     expect(store.createdEvents, hasLength(1));
