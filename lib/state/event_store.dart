@@ -82,7 +82,7 @@ class EventStore extends ChangeNotifier {
 
   int get savedCount => _savedEventIds.length;
   int get joinedCount => _joinedEventIds.length;
-  int get createdCount => _createdEvents.length;
+  int get createdCount => createdEvents.length;
 
   bool isSaved(String eventId) => _savedEventIds.contains(eventId);
   bool isJoined(String eventId) => _joinedEventIds.contains(eventId);
@@ -159,7 +159,7 @@ class EventStore extends ChangeNotifier {
       longitude: longitude,
       distanceMiles: 0.3 + random.nextDouble() * 3,
       attendeeCount: 1,
-      hostName: 'You',
+      hostName: _resolveHostName(),
       creatorId: _currentUserId,
       createdByUser: true,
     );
@@ -169,6 +169,15 @@ class EventStore extends ChangeNotifier {
     await _persist();
     await _saveCreatedEventToCloud(event);
     return event;
+  }
+
+  String _resolveHostName() {
+    final firebaseAuth = _auth ?? FirebaseAuth.instance;
+    final displayName = firebaseAuth.currentUser?.displayName?.trim();
+    if (displayName != null && displayName.isNotEmpty) return displayName;
+    final email = firebaseAuth.currentUser?.email?.trim();
+    if (email != null && email.isNotEmpty) return email.split('@').first;
+    return 'You';
   }
 
   Future<(double, double)?> _geocodeLocation(String locationName) async {

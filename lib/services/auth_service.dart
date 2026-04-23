@@ -1,0 +1,65 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+class AuthService {
+  AuthService._();
+
+  static final _auth = FirebaseAuth.instance;
+  static final _googleSignIn = GoogleSignIn();
+
+  static Future<UserCredential> signInWithEmail(
+    String email,
+    String password,
+  ) => _auth.signInWithEmailAndPassword(email: email, password: password);
+
+  static Future<UserCredential> registerWithEmail({
+    required String email,
+    required String password,
+    required String name,
+  }) async {
+    final credential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    final trimmed = name.trim();
+    if (trimmed.isNotEmpty) {
+      await credential.user?.updateDisplayName(trimmed);
+    }
+    return credential;
+  }
+
+  /// Returns null if the user cancelled the Google sign-in flow.
+  static Future<UserCredential?> signInWithGoogle() async {
+    final googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return null;
+    final googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+    return _auth.signInWithCredential(credential);
+  }
+
+  static Future<void> signOut() async {
+    await Future.wait([
+      _auth.signOut(),
+      _googleSignIn.signOut(),
+    ]);
+  }
+
+  static Future<void> sendPasswordReset(String email) =>
+      _auth.sendPasswordResetEmail(email: email);
+
+  static String messageFor(FirebaseAuthException e) => switch (e.code) {
+        'invalid-email' => 'Enter a valid email address.',
+        'user-disabled' => 'This account has been disabled.',
+        'user-not-found' => 'No account found for that email.',
+        'wrong-password' || 'invalid-credential' =>
+          'Email or password is wrong.',
+        'email-already-in-use' => 'That email already has an account.',
+        'weak-password' => 'Use at least 6 characters for your password.',
+        'operation-not-allowed' => 'Sign-in is not enabled in Firebase.',
+        'network-request-failed' => 'Check your connection and try again.',
+        _ => e.message ?? 'Authentication failed. Try again.',
+      };
+}

@@ -1,71 +1,62 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/auth_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import 'register_screen.dart';
 
-class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  bool _isSignUp = false;
   bool _isLoading = false;
   bool _obscurePassword = true;
 
   @override
   void dispose() {
-    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    final formValid = _formKey.currentState?.validate() ?? false;
-    if (!formValid || _isLoading) {
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
+  Future<void> _signIn() async {
+    if (!(_formKey.currentState?.validate() ?? false) || _isLoading) return;
+    setState(() => _isLoading = true);
     try {
-      final auth = FirebaseAuth.instance;
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
-
-      if (_isSignUp) {
-        final credential = await auth.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-        final displayName = _nameController.text.trim();
-        if (displayName.isNotEmpty) {
-          await credential.user?.updateDisplayName(displayName);
-        }
-      } else {
-        await auth.signInWithEmailAndPassword(email: email, password: password);
-      }
-    } on FirebaseAuthException catch (error) {
-      _showError(_authMessage(error));
+      await AuthService.signInWithEmail(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      // AuthGate rebuilds automatically on auth state change.
+    } on FirebaseAuthException catch (e) {
+      _showError(AuthService.messageFor(e));
     } catch (_) {
       _showError('Something went wrong. Try again.');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      await AuthService.signInWithGoogle();
+    } on FirebaseAuthException catch (e) {
+      _showError(AuthService.messageFor(e));
+    } catch (_) {
+      _showError('Google sign-in failed. Try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -75,57 +66,32 @@ class _AuthScreenState extends State<AuthScreen> {
       _showError('Enter your email first.');
       return;
     }
-
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      if (!mounted) {
-        return;
-      }
+      await AuthService.sendPasswordReset(email);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password reset email sent.')),
       );
-    } on FirebaseAuthException catch (error) {
-      _showError(_authMessage(error));
+    } on FirebaseAuthException catch (e) {
+      _showError(AuthService.messageFor(e));
     }
   }
 
   void _showError(String message) {
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  String _authMessage(FirebaseAuthException error) {
-    return switch (error.code) {
-      'invalid-email' => 'Enter a valid email address.',
-      'user-disabled' => 'This account has been disabled.',
-      'user-not-found' => 'No account found for that email.',
-      'wrong-password' || 'invalid-credential' => 'Email or password is wrong.',
-      'email-already-in-use' => 'That email already has an account.',
-      'weak-password' => 'Use at least 6 characters for your password.',
-      'operation-not-allowed' => 'Email sign-in is not enabled in Firebase.',
-      'network-request-failed' => 'Check your connection and try again.',
-      _ => error.message ?? 'Authentication failed. Try again.',
-    };
-  }
-
-  void _toggleMode() {
-    setState(() {
-      _isSignUp = !_isSignUp;
-    });
+  void _goToRegister() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const RegisterScreen()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = _isSignUp ? 'Create your account' : 'Welcome back';
-    final actionLabel = _isSignUp ? 'Sign Up' : 'Log In';
-    final switchLabel = _isSignUp
-        ? 'Already have an account? Log in'
-        : 'New here? Sign up';
-
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -144,10 +110,10 @@ class _AuthScreenState extends State<AuthScreen> {
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    title,
+                  const Text(
+                    'Welcome back',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.mutedText),
+                    style: TextStyle(color: AppColors.mutedText),
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   Container(
@@ -158,17 +124,6 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (_isSignUp) ...[
-                            TextFormField(
-                              controller: _nameController,
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'Name',
-                                prefixIcon: Icon(Icons.person_outline_rounded),
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
@@ -192,7 +147,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             obscureText: _obscurePassword,
                             textInputAction: TextInputAction.done,
                             autofillHints: const [AutofillHints.password],
-                            onFieldSubmitted: (_) => _submit(),
+                            onFieldSubmitted: (_) => _signIn(),
                             decoration: InputDecoration(
                               labelText: 'Password',
                               prefixIcon: const Icon(
@@ -202,11 +157,9 @@ class _AuthScreenState extends State<AuthScreen> {
                                 tooltip: _obscurePassword
                                     ? 'Show password'
                                     : 'Hide password',
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
+                                onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                ),
                                 icon: Icon(
                                   _obscurePassword
                                       ? Icons.visibility_outlined
@@ -223,7 +176,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                           const SizedBox(height: AppSpacing.lg),
                           FilledButton.icon(
-                            onPressed: _isLoading ? null : _submit,
+                            onPressed: _isLoading ? null : _signIn,
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               foregroundColor: Colors.black,
@@ -237,23 +190,74 @@ class _AuthScreenState extends State<AuthScreen> {
                                     ),
                                   )
                                 : const Icon(Icons.arrow_forward_rounded),
-                            label: Text(actionLabel),
+                            label: const Text('Log In'),
                           ),
-                          if (!_isSignUp) ...[
-                            const SizedBox(height: AppSpacing.sm),
-                            TextButton(
-                              onPressed: _isLoading ? null : _resetPassword,
-                              child: const Text('Reset password'),
-                            ),
-                          ],
+                          const SizedBox(height: AppSpacing.sm),
+                          TextButton(
+                            onPressed: _isLoading ? null : _resetPassword,
+                            child: const Text('Forgot password?'),
+                          ),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Divider(color: AppColors.border),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                        ),
+                        child: Text(
+                          'or',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                      const Expanded(
+                        child: Divider(color: AppColors.border),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  OutlinedButton(
+                    onPressed: _isLoading ? null : _signInWithGoogle,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      side: const BorderSide(color: AppColors.border),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'G',
+                              style: TextStyle(
+                                color: Color(0xFF4285F4),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        const Text('Continue with Google'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                   TextButton(
-                    onPressed: _isLoading ? null : _toggleMode,
-                    child: Text(switchLabel),
+                    onPressed: _isLoading ? null : _goToRegister,
+                    child: const Text("Don't have an account? Sign up"),
                   ),
                 ],
               ),

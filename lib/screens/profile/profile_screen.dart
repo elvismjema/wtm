@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../app.dart';
-import '../../data/demo_user.dart';
+import '../../services/auth_service.dart';
 import '../../state/event_store.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
@@ -14,16 +14,10 @@ class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   Future<void> _signOut(BuildContext context) async {
-    final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
-
     try {
-      await FirebaseAuth.instance.signOut();
-      navigator.popUntil((route) => route.isFirst);
-    } on FirebaseAuthException catch (error) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(error.message ?? 'Could not sign out.')),
-      );
+      await AuthService.signOut();
+      // AuthGate rebuilds automatically — no manual navigation needed.
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Could not sign out. Try again.')),
@@ -38,12 +32,9 @@ class ProfileScreen extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
     final displayName = user?.displayName?.trim();
     final email = user?.email?.trim();
-    final profileName = displayName?.isNotEmpty == true
-        ? displayName!
-        : email ?? demoUser.name;
-    final profileSubtitle = email?.isNotEmpty == true
-        ? email!
-        : demoUser.school;
+    final profileName =
+        (displayName != null && displayName.isNotEmpty) ? displayName : email ?? 'User';
+    final profileSubtitle = email ?? '';
 
     return Scaffold(
       body: SafeArea(
