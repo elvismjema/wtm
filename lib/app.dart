@@ -88,7 +88,10 @@ class WhatsTheMoveApp extends StatelessWidget {
         }
 
         return MaterialPageRoute<void>(
-          builder: (_) => AppShell(initialRoute: name),
+          builder: (_) => AppShell(
+            key: AppShell.shellKey,
+            initialRoute: name,
+          ),
           settings: settings,
         );
       },
@@ -97,7 +100,10 @@ class WhatsTheMoveApp extends StatelessWidget {
 
   MaterialPageRoute<void> _fallback(RouteSettings settings) {
     return MaterialPageRoute<void>(
-      builder: (_) => const AppShell(initialRoute: AppRoutes.map),
+      builder: (_) => AppShell(
+        key: AppShell.shellKey,
+        initialRoute: AppRoutes.map,
+      ),
       settings: settings,
     );
   }
@@ -118,7 +124,10 @@ class AuthGate extends StatelessWidget {
         }
 
         if (snapshot.hasData) {
-          return const AppShell(initialRoute: AppRoutes.map);
+          return AppShell(
+            key: AppShell.shellKey,
+            initialRoute: AppRoutes.map,
+          );
         }
 
         return const LoginScreen();
@@ -128,7 +137,13 @@ class AuthGate extends StatelessWidget {
 }
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, required this.initialRoute});
+  AppShell({super.key, required this.initialRoute});
+
+  static final GlobalKey<_AppShellState> shellKey = GlobalKey<_AppShellState>();
+
+  static void showEventOnMap(String eventId) {
+    shellKey.currentState?._showEventOnMap(eventId);
+  }
 
   final String initialRoute;
 
@@ -145,6 +160,8 @@ class _AppShellState extends State<AppShell> {
   ];
 
   late int _activeIndex;
+  String? _mapFocusEventId;
+  int _mapFocusVersion = 0;
 
   @override
   void initState() {
@@ -168,7 +185,11 @@ class _AppShellState extends State<AppShell> {
   Widget _buildScreen(int index) {
     switch (index) {
       case 0:
-        return MapScreen(onOpenSearch: () => _setActiveTab(1));
+        return MapScreen(
+          onOpenSearch: () => _setActiveTab(1),
+          focusEventId: _mapFocusEventId,
+          focusVersion: _mapFocusVersion,
+        );
       case 1:
         return SearchScreen(onBackToMap: () => _setActiveTab(0));
       case 2:
@@ -186,6 +207,14 @@ class _AppShellState extends State<AppShell> {
     }
     setState(() {
       _activeIndex = index;
+    });
+  }
+
+  void _showEventOnMap(String eventId) {
+    setState(() {
+      _activeIndex = 0;
+      _mapFocusEventId = eventId;
+      _mapFocusVersion += 1;
     });
   }
 

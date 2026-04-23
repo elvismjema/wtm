@@ -188,15 +188,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               },
             ),
             const SizedBox(height: AppSpacing.md),
-            OutlinedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Cover image UI only for now.')),
-                );
-              },
-              icon: const Icon(Icons.add_a_photo_outlined),
-              label: const Text('Add Cover Image'),
-            ),
             const SizedBox(height: AppSpacing.xl),
             FilledButton(
               onPressed: _submit,

@@ -9,9 +9,16 @@ import '../../models/event.dart';
 import '../../state/event_store.dart';
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key, required this.onOpenSearch});
+  const MapScreen({
+    super.key,
+    required this.onOpenSearch,
+    this.focusEventId,
+    this.focusVersion = 0,
+  });
 
   final VoidCallback onOpenSearch;
+  final String? focusEventId;
+  final int focusVersion;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -59,11 +66,22 @@ class _MapScreenState extends State<MapScreen> {
   bool _isLoadingLocation = true;
   bool _hasLocationPermission = false;
   StreamSubscription<Position>? _positionSubscription;
+  String? _pendingFocusEventId;
 
   @override
   void initState() {
     super.initState();
     _initLocation();
+    _pendingFocusEventId = widget.focusEventId;
+  }
+
+  @override
+  void didUpdateWidget(covariant MapScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.focusVersion != oldWidget.focusVersion) {
+      _pendingFocusEventId = widget.focusEventId;
+      _focusPendingEvent();
+    }
   }
 
   @override
@@ -284,6 +302,29 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  Future<void> _focusPendingEvent() async {
+    final eventId = _pendingFocusEventId;
+    if (eventId == null || !_mapController.isCompleted || !mounted) {
+      return;
+    }
+
+    _pendingFocusEventId = null;
+    final event = EventStoreProvider.of(context).byId(eventId);
+    if (event == null) {
+      return;
+    }
+
+    final controller = await _mapController.future;
+    await controller.animateCamera(
+      CameraUpdate.newLatLngZoom(LatLng(event.latitude, event.longitude), 15.5),
+    );
+
+    if (!mounted) {
+      return;
+    }
+    _showEventBottomSheet(event);
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = EventStoreProvider.of(context);
@@ -318,9 +359,12 @@ class _MapScreenState extends State<MapScreen> {
         ),
     };
 
+    final mapBottomPadding = MediaQuery.of(context).padding.bottom + 124;
+
     return Scaffold(
       body: GoogleMap(
         style: _darkMapStyle,
+        padding: EdgeInsets.only(bottom: mapBottomPadding),
         initialCameraPosition: CameraPosition(
           target: _cameraTarget,
           zoom: 13.7,
@@ -339,6 +383,8 @@ class _MapScreenState extends State<MapScreen> {
               CameraUpdate.newLatLngZoom(_userLatLng!, 16),
             );
           }
+
+          await _focusPendingEvent();
         },
       ),
       floatingActionButton: _isLoadingLocation
