@@ -13,6 +13,24 @@ import '../../widgets/profile/stat_card.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
+  Future<void> _signOut(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      await FirebaseAuth.instance.signOut();
+      navigator.popUntil((route) => route.isFirst);
+    } on FirebaseAuthException catch (error) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(error.message ?? 'Could not sign out.')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not sign out. Try again.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = EventStoreProvider.of(context);
@@ -116,7 +134,7 @@ class ProfileScreen extends StatelessWidget {
               ProfileMenuTile(
                 icon: Icons.logout_rounded,
                 title: 'Sign Out',
-                onTap: () => FirebaseAuth.instance.signOut(),
+                onTap: () => _signOut(context),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(
