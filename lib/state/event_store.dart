@@ -34,6 +34,7 @@ class EventStore extends ChangeNotifier {
   static const _publicEventsCollection = 'events';
   static const _userCreatedCollection = 'created_events';
   static const _userSavedCollection = 'saved_events';
+  static const _userJoinedCollection = 'joined_events';
   static const _oklahomaCenter = (lat: 35.4676, lng: -97.5164);
   static const _geocodingApiKey = String.fromEnvironment(
     'GOOGLE_GEOCODING_API_KEY',
@@ -126,8 +127,10 @@ class EventStore extends ChangeNotifier {
 
     if (_joinedEventIds.contains(eventId)) {
       _joinedEventIds.remove(eventId);
+      await _deleteJoinedEventFromCloud(eventId);
     } else {
       _joinedEventIds.add(eventId);
+      await _saveJoinedEventToCloud(eventId);
     }
     notifyListeners();
     await _persist();
@@ -175,11 +178,15 @@ class EventStore extends ChangeNotifier {
   }
 
   String _resolveHostName() {
-    final firebaseAuth = _auth ?? FirebaseAuth.instance;
-    final displayName = firebaseAuth.currentUser?.displayName?.trim();
-    if (displayName != null && displayName.isNotEmpty) return displayName;
-    final email = firebaseAuth.currentUser?.email?.trim();
-    if (email != null && email.isNotEmpty) return email.split('@').first;
+    try {
+      final firebaseAuth = _auth ?? FirebaseAuth.instance;
+      final displayName = firebaseAuth.currentUser?.displayName?.trim();
+      if (displayName != null && displayName.isNotEmpty) return displayName;
+      final email = firebaseAuth.currentUser?.email?.trim();
+      if (email != null && email.isNotEmpty) return email.split('@').first;
+    } catch (_) {
+      // Firebase may be unavailable in local tests or offline-only mode.
+    }
     return 'You';
   }
 
@@ -460,6 +467,13 @@ class EventStore extends ChangeNotifier {
     } catch (_) {
       // Local saved IDs remain the fallback.
     }
+
+    try {
+      final joinedSnapshot = await _joinedEventsCollection(userId).get();
+      _joinedEventIds.addAll(joinedSnapshot.docs.map((doc) => doc.id));
+    } catch (_) {
+      // Local joined IDs remain the fallback.
+    }
   }
 
   Future<List<Event>> _loadLocalCreatedEvents(String userId) async {
@@ -571,6 +585,15 @@ class EventStore extends ChangeNotifier {
         .collection(_userSavedCollection);
   }
 
+  CollectionReference<Map<String, dynamic>> _joinedEventsCollection(
+    String userId,
+  ) {
+    return (_firestore ?? FirebaseFirestore.instance)
+        .collection('users')
+        .doc(userId)
+        .collection(_userJoinedCollection);
+  }
+
   CollectionReference<Map<String, dynamic>> _publicEventsCollectionRef() {
     return (_firestore ?? FirebaseFirestore.instance).collection(
       _publicEventsCollection,
@@ -603,6 +626,35 @@ class EventStore extends ChangeNotifier {
       await _savedEventsCollection(userId).doc(eventId).delete();
     } catch (_) {
       // Local saved IDs remain the fallback.
+    }
+  }
+
+  Future<void> _saveJoinedEventToCloud(String eventId) async {
+    final userId = _currentUserId;
+    if (!_enableCloudSync || userId == null) {
+      return;
+    }
+
+    try {
+      await _joinedEventsCollection(userId).doc(eventId).set({
+        'eventId': eventId,
+        'joinedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Local joined IDs remain the fallback.
+    }
+  }
+
+  Future<void> _deleteJoinedEventFromCloud(String eventId) async {
+    final userId = _currentUserId;
+    if (!_enableCloudSync || userId == null) {
+      return;
+    }
+
+    try {
+      await _joinedEventsCollection(userId).doc(eventId).delete();
+    } catch (_) {
+      // Local joined IDs remain the fallback.
     }
   }
 
